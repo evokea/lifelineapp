@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lifeline – Blood Donor Network</title>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#FFF4F3;--card:#fff;--ink:#2B1015;--mut:#7A5A5F;--red:#B3122A;--red2:#8E0E21;--teal:#0E7C86;--line:#F0D5D6;--warn:#FFF0C9;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#1C0B0F;--card:#2A1418;--ink:#FBE9EA;--mut:#C7A0A5;--line:#4A2A2F;--warn:#4A3A12;--teal:#38B6C1}}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:Figtree,system-ui,sans-serif;background:var(--bg);color:var(--ink);max-width:560px;margin:auto;padding-bottom:84px}
+header{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--red);color:#fff;position:sticky;top:0;z-index:5}
+header b{font-size:20px;font-weight:800;letter-spacing:.2px}header span{font-size:12px;opacity:.85}
+main{padding:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+h2{font-size:18px;margin:4px 0 10px}h3{margin:0 0 4px;font-size:16px}.mut{color:var(--mut);font-size:13px}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:10px 14px;background:var(--red);color:#fff;cursor:pointer;margin:6px 6px 0 0}
+button.alt{background:transparent;color:var(--red);border:1.5px solid var(--red)}button.ok{background:var(--teal)}button.sm{padding:6px 10px;font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.badge{display:inline-block;background:var(--red);color:#fff;border-radius:8px;padding:3px 9px;font-weight:800;margin-right:8px}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0}.bar i{display:block;height:100%;background:var(--teal)}
+.note{background:var(--warn);border-radius:10px;padding:10px;font-size:13px;margin-bottom:12px}
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;color:var(--mut);margin:0;border-radius:0;padding:12px 2px;font-size:12px}nav button.on{color:var(--red);box-shadow:inset 0 3px 0 var(--red)}
+.row{display:flex;gap:8px}.row>*{flex:1}.av{width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--line)}
+.seg button{background:var(--bg);color:var(--ink);border:1px solid var(--line)}.seg button.on{background:var(--red);color:#fff}
+</style></head><body>
+<header><svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3C14 12 8 18 8 25a12 12 0 0 0 24 0C32 18 26 12 20 3z" fill="#fff"/><path d="M20 17v14M13 24h14" stroke="#B3122A" stroke-width="3.5" stroke-linecap="round"/></svg>
+<div><b>Lifeline</b><br><span id="tag"></span></div></header>
+<main id="app"></main><nav id="nav"></nav>
+<script>
+const L={en:{home:"Requests",req:"Request",log:"Log",me:"Profile",tag:"Blood donors, connected",send:"Send request",way:"I’m on my way",here:"I’m here",close:"Close request",lang:"Language"},
+fr:{home:"Demandes",req:"Demander",log:"Journal",me:"Profil",tag:"Donneurs de sang, connectés",send:"Envoyer la demande",way:"Je suis en route",here:"Je suis là",close:"Clore la demande",lang:"Langue"},
+ha:{home:"Buƙatu",req:"Nema",log:"Rajista",me:"Bayani",tag:"Masu bayar da jini",send:"Aika buƙata",way:"Ina hanya",here:"Na iso",close:"Rufe buƙata",lang:"Harshe"},
+es:{home:"Solicitudes",req:"Pedir",log:"Registro",me:"Perfil",tag:"Donantes de sangre conectados",send:"Enviar solicitud",way:"Voy en camino",here:"Ya estoy aquí",close:"Cerrar solicitud",lang:"Idioma"}};
+const CAN={"O-":["O-"],"O+":["O-","O+"],"A-":["O-","A-"],"A+":["O-","O+","A-","A+"],"B-":["O-","B-"],"B+":["O-","O+","B-","B+"],"AB-":["O-","A-","B-","AB-"],"AB+":["O-","O+","A-","A+","B-","B+","AB-","AB+"]};
+const TYPES=Object.keys(CAN),BAD=/\b(fuck|shit|bitch|bastard|asshole|dick|damn)\w*/i;
+const day=864e5,hr=36e5;
+let S;try{S=JSON.parse(localStorage.getItem("ll"))}catch(e){}
+S=S||{u:null,lang:"en",tab:"home",freq:3,rad:15,mailB:true,don:[],hist:[],reqs:[],made:[],
+ seed:[{id:"s1",type:"O+",units:4,place:"City Hospital, Ward 3",km:3,patient:"Amina B.",note:"Surgery tonight",resp:[{n:"Tunde",s:"here"},{n:"Grace",s:"way"}]},
+ {id:"s2",type:"A+",units:2,place:"St. Luke Clinic",km:22,patient:"Child, 6 yrs",note:"",resp:[]},
+ {id:"s3",type:"B-",units:3,place:"Central Medical Centre",km:6,patient:"Joseph K.",note:"",resp:[]}],
+ drives:[{id:"d1",org:"Red Cross Branch",title:"Community Blood Drive",date:"Sat 14 Nov, 9am–3pm",place:"Town Hall",going:37,me:false}]};
+const sv=()=>{try{localStorage.setItem("ll",JSON.stringify(S))}catch(e){}};
+const t=k=>(L[S.lang]||L.en)[k]||L.en[k]||k,$=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt=d=>new Date(d).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
+const log=(m)=>{S.hist.unshift({t:Date.now(),m});S.hist=S.hist.slice(0,500)};
+const present=r=>r.resp.filter(x=>x.s=="here").length+(r.me=="here"?1:0);
+function nextOk(){const l=S.don.length?Math.max(...S.don.map(d=>d.d)):0;if(!l)return 0;const n=new Date(l);n.setMonth(n.getMonth()+Number(S.freq));return n.getTime()}
+const eligible=()=>Date.now()>=nextOk();
+function tick(){const all=[...S.made,...S.seed];all.forEach(r=>{if(r.open===false)return;
+ if(r.exp&&Date.now()>r.exp){r.open=false;r.why="Expired"}
+ else if(present(r)>=r.units){r.open=false;r.why="Enough donors present"}})}
+function show(){tick();sv();$("tag").textContent=t("tag");
+ if(!S.u){auth();return}
+ const tabs=[["home","🩸"],["req","➕"],["log","📒"],["me","👤"]];
+ $("nav").innerHTML=tabs.map(([k,i])=>`<button class="${S.tab==k?"on":""}" onclick="S.tab='${k}';show()">${i}<br>${t(k=="home"?"home":k)}</button>`).join("");
+ ({home,req,log:logv,me:prof})[S.tab]()}
+function auth(){$("nav").innerHTML="";const o=S.o||"ind";
+ $("app").innerHTML=`<div class="card"><h2>Join Lifeline</h2><div class="seg row"><button class="${o=="ind"?"on":""}" onclick="S.o='ind';show()">Individual</button><button class="${o=="org"?"on":""}" onclick="S.o='org';show()">Organization</button></div>
+ ${o=="ind"?`<div class="row"><div><label>First name</label><input id="a_f" autocomplete="given-name"></div><div><label>Last name</label><input id="a_ln" autocomplete="family-name"></div></div>`:`<label>Organization name</label><input id="a_n">`}
+ <label>Phone or email</label><input id="a_c" placeholder="+234… or you@mail.com">
+ ${o=="ind"?`<div class="row"><div><label>Sex</label><select id="a_s"><option>Female</option><option>Male</option><option>Other</option></select></div><div><label>Age</label><input id="a_a" type="number" min="16" max="100"></div></div>
+ <div class="row"><div><label>Blood type</label><select id="a_b">${TYPES.map(x=>`<option>${x}</option>`).join("")}<option value="">Unknown</option></select></div><div><label>City / area</label><input id="a_l"></div></div>
+ <div class="row"><div><label>Weight (kg)</label><input id="a_w" type="number"></div><div><label>Last known haemoglobin</label><input id="a_h" placeholder="g/dL"></div></div>
+ <label>Conditions / medication (private)</label><input id="a_m" placeholder="Optional">`:`<label>Licence / registration no.</label><input id="a_r"><label>Address</label><input id="a_l">`}
+ <label>Verification code</label><input id="a_v" placeholder="Demo code: 1234">
+ <p class="mut">Your health details stay private. Others only see your first name and what you choose to share when you respond.</p>
+ <button onclick="reg('${o}')">Create account</button></div>`}
+function reg(o){const g=i=>($(i)||{}).value||"";
+ const nm=o=="ind"?(g("a_f").trim()+" "+g("a_ln").trim()).trim():g("a_n").trim();
+ if(o=="ind"&&(!g("a_f").trim()||!g("a_ln").trim()))return alert("Enter both your first name and last name.");
+ if(g("a_v")!="1234"||!nm||!/(@|\+?\d{7,})/.test(g("a_c")))return alert("Enter a name, a valid phone or email, and the demo code 1234.");
+ if(o=="ind"&&(Number(g("a_a"))<18||Number(g("a_a"))>65))return alert("Donors must be 18–65. You can still use the app to request blood: enter 18 if requesting only.");
+ S.u={o,name:nm,first:g("a_f").trim(),last:g("a_ln").trim(),user:"@"+(o=="ind"?g("a_f").trim():nm.split(" ")[0]).toLowerCase().replace(/[^a-z0-9]/g,"")+Math.floor(Math.random()*90+10),contact:g("a_c"),sex:g("a_s"),age:g("a_a"),bt:g("a_b"),loc:g("a_l"),wt:g("a_w"),hb:g("a_h"),med:g("a_m"),reg:g("a_r"),img:""};
+ S.tab="home";show()}
+function card(r){const p=present(r),open=r.open!==false,mine=r.own,mt=S.u.bt;
+ const match=mine||(mt&&CAN[r.type].includes(mt));if(!match&&!mine)return"";
+ if(!mine&&r.km>S.rad)return"";if(r.rep)return"";
+ const ok=eligible();
+ let h=`<div class="card" style="${open?"":"opacity:.6"}"><span class="badge">${r.type}</span><b>${esc(r.place)}</b><div class="mut">${mine?"Your request":"For "+esc(r.patient)} · ${mine?esc(r.patient||"self"):r.km+" km away"}${r.exp?" · ends "+new Date(r.exp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):""}</div>
+ ${r.note?`<p>${esc(r.note)}</p>`:""}${r.lat?`<a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" rel="noopener">📍 Open in maps</a>`:""}<div class="mut">${p} present of ${r.units} needed · ${r.resp.filter(x=>x.s=="way").length+(r.me=="way"?1:0)} on the way</div><div class="bar"><i style="width:${Math.min(100,p/r.units*100)}%"></i></div>`;
+ if(!open)h+=`<div class="note">Closed: ${r.why||"Closed by requester"}. No need to travel.</div>`;
+ else if(mine){h+=r.resp.map((x,i)=>`<div class="mut">${esc(x.n)} – ${x.s=="here"?"at venue":"on the way"} ${x.v?"✔ verified donor":x.s=="here"?`<button class="sm ok" onclick="ver('${r.id}',${i})">Verify donated</button>`:""}</div>`).join("")+
+ `<button onclick="closeR('${r.id}')">${t("close")}</button><button class="alt" onclick="demoResp('${r.id}')">Simulate responder</button>`;
+ }else if(!ok)h+=`<div class="note">Silent alert: you are not eligible yet. Your wait period ends ${fmt(nextOk())}.</div>`;
+ else{if(r.me=="here"){h+=`<div class="note">You are marked present. Waiting for the requester to verify your donation.</div><button class="ok sm" onclick="selfVer('${r.id}')">Demo: requester verifies me</button>`}
+  else h+=`<button class="alt" onclick="resp('${r.id}','way')">${t("way")}</button><button onclick="resp('${r.id}','here')">${t("here")}</button>`;
+  h+=`<button class="alt sm" onclick="rep('${r.id}')">Report</button>`}
+ return h+"</div>"}
+function home(){const all=[...S.made,...S.seed];const ok=eligible();
+ const cs=all.map(card).join("");
+ const ds=S.drives.map(d=>`<div class="card"><h3>${esc(d.title)}</h3><div class="mut">${esc(d.org)} · ${esc(d.date)} · ${esc(d.place)}</div><p>${d.going} people plan to attend</p>${S.u.o=="ind"?`<button class="${d.me?"alt":""}" onclick="going('${d.id}')">${d.me?"✔ I will attend (tap to undo)":"I will attend"}</button>`:""}</div>`).join("");
+ $("app").innerHTML=`<h2>Active requests near you</h2>${!ok&&S.u.o=="ind"?`<div class="note">You can donate again from ${fmt(nextOk())}. Alerts will be silent until then.</div>`:""}${cs||`<div class="card mut">No active requests match your blood type within ${S.rad} km. You will be alerted if one appears or if you move into range.</div>`}
+ <button class="alt sm" onclick="closer()">Demo: travel into range of distant requests</button><h2>Blood drives</h2>${ds}`}
+function closer(){S.seed.forEach(r=>r.km=Math.max(1,r.km-10));show()}
+function resp(id,s){const r=S.seed.find(x=>x.id==id);r.me=s;log(`You marked "${s=="way"?"on my way":"present"}" for ${r.place} (${r.type})`);show()}
+function selfVer(id){const r=S.seed.find(x=>x.id==id);S.don.unshift({d:Date.now(),place:r.place,city:"",via:"Lifeline request",ver:true});log(`Donation verified at ${r.place}`);r.me=null;show()}
+function rep(id){const r=S.seed.find(x=>x.id==id);r.rep=true;log("Reported a request for review");show()}
+function going(id){const d=S.drives.find(x=>x.id==id);d.me=!d.me;d.going+=d.me?1:-1;show()}
+function closeR(id){const r=S.made.find(x=>x.id==id);r.open=false;r.why="Closed by requester";log(`You closed your request at ${r.place}`);show()}
+function demoResp(id){const r=S.made.find(x=>x.id==id);r.resp.push({n:["Ibrahim","Mary","Chidi","Sade","Paul"][r.resp.length%5],s:r.resp.length%2?"here":"way"});show()}
+function ver(id,i){const r=S.made.find(x=>x.id==id);r.resp[i].v=true;log(`Verified ${r.resp[i].n} as a donor at ${r.place}`);show()}
+let who="self";
+function req(){const o=S.u.o=="org";
+ $("app").innerHTML=`<h2>${t("req")} blood</h2>${o?`<div class="card"><h3>Organize a blood drive</h3><label>Title</label><input id="d_t"><label>Date and time</label><input id="d_d"><label>Venue</label><input id="d_p"><button onclick="drive()">Announce drive</button></div>`:""}
+ <div class="card"><div class="seg row">${o?"":`<button class="${who=="self"?"on":""}" onclick="who='self';req()">For myself</button>`}<button class="${who=="other"||o?"on":""}" onclick="who='other';req()">For someone else</button></div>
+ ${who=="other"||o?`<label>Patient name / description</label><input id="r_pt">`:""}
+ <div class="row"><div><label>Blood type needed</label><select id="r_t">${TYPES.map(x=>`<option ${(who=="self"&&!o&&S.u.bt==x)?"selected":""}>${x}</option>`).join("")}</select></div><div><label>Donors needed</label><input id="r_u" type="number" value="2" min="1" max="20"></div></div>
+ <label>Hospital / location</label><input id="r_p" placeholder="Type the address or hospital name">
+ <div class="row" style="flex-wrap:wrap"><button class="alt sm" onclick="geo()">📍 Use my location</button><button class="alt sm" onclick="openMap('g')">Pick in Google Maps</button><button class="alt sm" onclick="openMap('a')">Pick in Apple Maps</button></div>
+ <label>Paste a shared map link or coordinates</label><div class="row"><input id="r_ln" placeholder="Link from your maps app, or 9.9167, 8.8903" style="flex:3"><button class="sm" style="flex:1" onclick="fromLink()">Set pin</button></div>
+ <div id="r_pin" class="note" style="${pin?"":"display:none"}">${pinTxt()}</div>
+ <div class="row"><div><label>Broadcast radius (km)</label><input id="r_r" type="number" value="15"></div><div><label>Stays active</label><select id="r_h"><option value="6">6 hours</option><option value="24" selected>24 hours</option><option value="48">48 hours</option></select></div></div>
+ <label>Note (optional)</label><textarea id="r_n" rows="2" maxlength="140"></textarea>
+ <label><input type="checkbox" id="r_e" checked style="width:auto"> Also email donors who may be offline</label>
+ <p class="mut">Max 3 requests per day. Requests are logged, and false requests lead to suspension.</p><button onclick="send()">${t("send")}</button></div>`}
+let pin=null;
+const pinTxt=()=>pin?`📍 Pin set: ${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}${pin.label?" ("+esc(pin.label)+")":""} · <a href="https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}" target="_blank" rel="noopener">check on map</a> · <a href="#" onclick="pin=null;req();return false">clear</a>`:"";
+function setPin(lat,lng,label){if(isNaN(lat)||isNaN(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return alert("Those coordinates are not valid.");pin={lat,lng,label};if(!$("r_p").value)$("r_p").value=label||`${lat.toFixed(4)}, ${lng.toFixed(4)}`;const b=$("r_pin");b.style.display="";b.innerHTML=pinTxt()}
+function openMap(k){const q=encodeURIComponent($("r_p").value||"hospital");window.open(k=="g"?"https://www.google.com/maps/search/?api=1&query="+q:"https://maps.apple.com/?q="+q,"_blank","noopener");alert("Find the exact spot, tap Share in the maps app, copy the link, then paste it here and tap Set pin.")}
+function fromLink(){const s=decodeURIComponent($("r_ln").value.trim()),n="(-?\\d{1,3}\\.\\d+)\\s*,\\s*(-?\\d{1,3}\\.\\d+)";
+ const m=s.match(new RegExp("@"+n))||s.match(new RegExp("!3d(-?\\d+\\.\\d+)!4d(-?\\d+\\.\\d+)"))||s.match(new RegExp("[?&](?:q|ll|sll|coordinate|query|center)="+n))||s.match(new RegExp("^"+n+"$"));
+ if(!m)return alert("No coordinates found. Short links (like maps.app.goo.gl) hide them: open the link, then copy the full address-bar link, or paste the coordinates directly.");setPin(parseFloat(m[1]),parseFloat(m[2]),"from map link")}
+function geo(){if(!navigator.geolocation)return alert("Location unavailable. Type the address instead.");
+ navigator.geolocation.getCurrentPosition(p=>setPin(p.coords.latitude,p.coords.longitude,"my current location"),()=>alert("Location is off or blocked. Type the address instead."))}
+function send(){const v=i=>($(i)||{}).value||"";const n=v("r_n"),pl=v("r_p");
+ if(!pl&&!pin)return alert("Enter where the blood is needed, or set a map pin.");
+ if(BAD.test(n+pl+v("r_pt")))return alert("Please remove offensive language. Requests must stay respectful.");
+ if(S.made.filter(r=>Date.now()-r.id<day).length>=3)return alert("Daily limit reached (3 requests). Close or wait for an existing one.");
+ if(S.made.filter(r=>r.open!==false&&(!r.exp||r.exp>Date.now())).length>=2)return alert("You already have 2 active requests. Close one that is fulfilled before sending another.");
+ const r={id:Date.now(),own:true,type:v("r_t"),units:Number(v("r_u"))||1,place:pl||"Pinned location",lat:pin&&pin.lat,lng:pin&&pin.lng,patient:S.u.o=="org"||who=="other"?v("r_pt"):"self",note:n,exp:Date.now()+Number(v("r_h"))*hr,resp:[]};
+ S.made.unshift(r);pin=null;log(`Broadcast sent for ${r.type} at ${pl}`);
+ const est=CAN[r.type].length*7+3;S.tab="home";show();alert(`Request sent. About ${est} compatible, eligible donors within ${v("r_r")} km are being notified. Donors who enter the area later will also be alerted${v("r_e")?", and offline donors get an email":""}.`)}
+function drive(){const v=i=>$(i).value;if(!v("d_t")||BAD.test(v("d_t")+v("d_p")))return alert("Enter a clean title and venue.");
+ S.drives.unshift({id:"d"+Date.now(),org:S.u.name,title:v("d_t"),date:v("d_d"),place:v("d_p"),going:0,me:false});log("Announced blood drive: "+v("d_t"));S.tab="home";show()}
+function logv(){const ver=S.don.filter(d=>d.ver).length;
+ $("app").innerHTML=`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${S.don.length?"Next eligible: "+fmt(nextOk()):"No donations recorded yet."}</div></div>
+ <div class="card"><h3>Record a donation</h3><label>Date</label><input id="m_d" type="date"><label>Facility</label><input id="m_f"><label>City / location</label><input id="m_c"><button onclick="addD()">Save donation</button></div>
+ ${S.don.map(d=>`<div class="card"><b>${fmt(d.d)}</b> ${d.ver?"✔ verified":""}<div class="mut">${esc(d.place)} ${esc(d.city)} · ${esc(d.via)}</div></div>`).join("")}
+ <h2>Activity</h2>${histHtml()}`}
+function histHtml(){let y="",o="";S.hist.forEach(h=>{const d=new Date(h.t),yy=d.getFullYear();if(yy!=y){y=yy;o+=`<h3 style="margin-top:14px">${yy}</h3>`}
+ o+=`<div class="mut">${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}, ${d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:false})} · ${esc(h.m)}</div>`});
+ return o||'<div class="mut">Requests and responses appear here.</div>'}
+function addD(){const d=$("m_d").value;if(!d||!$("m_f").value)return alert("Add the date and the facility.");
+ if(new Date(d)>new Date())return alert("The date can’t be in the future.");
+ S.don.unshift({d:new Date(d).getTime(),place:$("m_f").value,city:$("m_c").value,via:"Self-recorded",ver:false});S.don.sort((a,b)=>b.d-a.d);log("Recorded a donation at "+$("m_f").value);show()}
+function prof(){const u=S.u;
+ $("app").innerHTML=`<div class="card"><div class="row" style="align-items:center"><div style="flex:0 0 72px">${u.img?`<img class="av" src="${u.img}" alt="">`:`<div class="av"></div>`}</div><div><h3>${esc(u.name)}</h3><div class="mut">${esc(u.user)} · ${u.o=="org"?"Organization":esc(u.bt||"Type unknown")}</div></div></div>
+ <label>Profile photo</label><input type="file" accept="image/*" onchange="photo(this)">
+ ${u.o=="ind"?`<div class="row"><div><label>First name</label><input value="${esc(u.first||"")}" onchange="setNm('first',this.value)"></div><div><label>Last name</label><input value="${esc(u.last||"")}" onchange="setNm('last',this.value)"></div></div>`:""}
+ <label>Username</label><input value="${esc(u.user)}" onchange="S.u.user=this.value;sv()">
+ ${u.o=="ind"?`<label>Blood type</label><select onchange="S.u.bt=this.value;sv()"><option value="">Unknown</option>${TYPES.map(x=>`<option ${u.bt==x?"selected":""}>${x}</option>`).join("")}</select>`:""}</div>
+ <div class="card"><h3>Settings</h3><label>${t("lang")}</label><select onchange="S.lang=this.value;show()">${[["en","English"],["fr","Français"],["ha","Hausa"],["es","Español"]].map(([k,n])=>`<option value="${k}" ${S.lang==k?"selected":""}>${n}</option>`).join("")}</select>
+ <label>Donation frequency (months between donations)</label><input type="number" min="1" max="12" value="${S.freq}" onchange="S.freq=this.value;sv()">
+ <label>Alert radius (km)</label><input type="number" min="1" max="100" value="${S.rad}" onchange="S.rad=this.value;sv()">
+ <label><input type="checkbox" style="width:auto" ${S.mailB?"checked":""} onchange="S.mailB=this.checked;sv()"> Email me requests when I may be offline</label>
+ <label><input type="checkbox" style="width:auto" checked> Share my name with requesters when I respond</label></div>
+ <div class="card mut">Free SMS isn’t possible from a web app. The Send screen can share a request through your own SMS or WhatsApp. Report any misuse from a request card.<br><button class="alt" onclick="logout()">${lo?"Tap again to confirm log out":"Log out"}</button></div>`}
+let lo=false;
+function logout(){if(!lo){lo=true;prof();setTimeout(()=>{if(lo){lo=false;if(S.u&&S.tab=="me")prof()}},4000);return}lo=false;S.u=null;S.tab="home";show()}
+function setNm(k,v){S.u[k]=v.trim();S.u.name=((S.u.first||"")+" "+(S.u.last||"")).trim();sv();prof()}
+function photo(i){const f=i.files[0];if(!f||f.size>2e6)return alert("Choose an image under 2 MB.");const r=new FileReader();r.onload=()=>{S.u.img=r.result;show()};r.readAsDataURL(f)}
+show();
+</script></body></html>
