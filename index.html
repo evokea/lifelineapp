@@ -80,21 +80,22 @@ function card(r){const p=present(r),open=r.open!==false,mine=r.own,mt=S.u.bt;
  const match=mine||(mt&&CAN[r.type].includes(mt));if(!match&&!mine)return"";
  if(!mine&&r.km>S.rad)return"";if(r.rep)return"";
  const ok=eligible();
- let h=`<div class="card" style="${open?"":"opacity:.6"}"><span class="badge">${r.type}</span><b>${esc(r.place)}</b><div class="mut">${mine?"Your request":"For "+esc(r.patient)} · ${mine?esc(r.patient||"self"):r.km+" km away"}${r.exp?" · ends "+new Date(r.exp).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):""}</div>
+ let h=`<div class="card" style="${open?"":"opacity:.6"}"><span class="badge">${r.type}</span><b>${esc(r.place)}</b><div class="mut">${mine?"Your request":"For "+esc(r.patient)} · ${mine?esc(r.patient||"self"):r.km+" km away"}${r.exp&&open?" · "+endTxt(r.exp):""}</div>
  ${r.note?`<p>${esc(r.note)}</p>`:""}${r.lat?`<a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" rel="noopener">📍 Open in maps</a>`:""}<div class="mut">${p} present of ${r.units} needed · ${r.resp.filter(x=>x.s=="way").length+(r.me=="way"?1:0)} on the way</div><div class="bar"><i style="width:${Math.min(100,p/r.units*100)}%"></i></div>`;
  if(!open)h+=`<div class="note">Closed: ${r.why||"Closed by requester"}. No need to travel.</div>`;
  else if(mine){h+=r.resp.map((x,i)=>`<div class="mut">${esc(x.n)} – ${x.s=="here"?"at venue":"on the way"} ${x.v?"✔ verified donor":x.s=="here"?`<button class="sm ok" onclick="ver('${r.id}',${i})">Verify donated</button>`:""}</div>`).join("")+
  `<button onclick="closeR('${r.id}')">${t("close")}</button><button class="alt" onclick="demoResp('${r.id}')">Simulate responder</button>`;
  }else if(!ok)h+=`<div class="note">Silent alert: you are not eligible yet. Your wait period ends ${fmt(nextOk())}.</div>`;
- else{if(r.me=="here"){h+=`<div class="note">You are marked present. Waiting for the requester to verify your donation.</div><button class="ok sm" onclick="selfVer('${r.id}')">Demo: requester verifies me</button>`}
+ else{if(r.me=="here"){h+=`<div class="note">You are marked present. Waiting for the requester to verify your donation.</div><button class="ok sm" onclick="selfVer('${r.id}')">Demo: requester verifies me</button><button class="alt sm" onclick="cancelR('${r.id}')">Withdraw</button>`}
+  else if(r.me=="way")h+=`<div class="note">You are marked as on your way. Cancel if your plans change so others are not expecting you.</div><button onclick="resp('${r.id}','here')">${t("here")}</button><button class="alt" onclick="cancelR('${r.id}')">Cancel my response</button>`;
   else h+=`<button class="alt" onclick="resp('${r.id}','way')">${t("way")}</button><button onclick="resp('${r.id}','here')">${t("here")}</button>`;
   h+=`<button class="alt sm" onclick="rep('${r.id}')">Report</button>`}
  return h+"</div>"}
 function home(){const all=[...S.made,...S.seed];const ok=eligible();
- const cs=all.map(card).join("");
+ const org=S.u.o=="org",cs=(org?all.filter(r=>r.own):all).map(card).join("");
  const ds=S.drives.map(d=>`<div class="card"><h3>${esc(d.title)}</h3><div class="mut">${esc(d.org)} · ${esc(d.date)} · ${esc(d.place)}</div><p>${d.going} people plan to attend</p>${S.u.o=="ind"?`<button class="${d.me?"alt":""}" onclick="going('${d.id}')">${d.me?"✔ I will attend (tap to undo)":"I will attend"}</button>`:""}</div>`).join("");
- $("app").innerHTML=`<h2>Active requests near you</h2>${!ok&&S.u.o=="ind"?`<div class="note">You can donate again from ${fmt(nextOk())}. Alerts will be silent until then.</div>`:""}${cs||`<div class="card mut">No active requests match your blood type within ${S.rad} km. You will be alerted if one appears or if you move into range.</div>`}
- <button class="alt sm" onclick="closer()">Demo: travel into range of distant requests</button><h2>Blood drives</h2>${ds}`}
+ $("app").innerHTML=`<h2>${org?"Your requests":"Active requests near you"}</h2>${!ok&&S.u.o=="ind"?`<div class="note">You can donate again from ${fmt(nextOk())}. Alerts will be silent until then.</div>`:""}${cs||(org?`<div class="card mut">You have no requests yet. Use the Request tab to ask for donors or announce a blood drive.</div>`:`<div class="card mut">No active requests match your blood type within ${S.rad} km. You will be alerted if one appears or if you move into range.</div>`)}
+ ${org?"":`<button class="alt sm" onclick="closer()">Demo: travel into range of distant requests</button>`}<h2>Blood drives</h2>${ds}`}
 function closer(){S.seed.forEach(r=>r.km=Math.max(1,r.km-10));show()}
 function resp(id,s){const r=S.seed.find(x=>x.id==id);r.me=s;log(`You marked "${s=="way"?"on my way":"present"}" for ${r.place} (${r.type})`);show()}
 function selfVer(id){const r=S.seed.find(x=>x.id==id);S.don.unshift({d:Date.now(),place:r.place,city:"",via:"Lifeline request",ver:true});log(`Donation verified at ${r.place}`);r.me=null;show()}
@@ -104,9 +105,9 @@ function closeR(id){const r=S.made.find(x=>x.id==id);r.open=false;r.why="Closed 
 function demoResp(id){const r=S.made.find(x=>x.id==id);r.resp.push({n:["Ibrahim","Mary","Chidi","Sade","Paul"][r.resp.length%5],s:r.resp.length%2?"here":"way"});show()}
 function ver(id,i){const r=S.made.find(x=>x.id==id);r.resp[i].v=true;log(`Verified ${r.resp[i].n} as a donor at ${r.place}`);show()}
 let who="self";
-function req(){const o=S.u.o=="org";
- $("app").innerHTML=`<h2>${t("req")} blood</h2>${o?`<div class="card"><h3>Organize a blood drive</h3><label>Title</label><input id="d_t"><label>Date and time</label><input id="d_d"><label>Venue</label><input id="d_p"><button onclick="drive()">Announce drive</button></div>`:""}
- <div class="card"><div class="seg row">${o?"":`<button class="${who=="self"?"on":""}" onclick="who='self';req()">For myself</button>`}<button class="${who=="other"||o?"on":""}" onclick="who='other';req()">For someone else</button></div>
+function req(){const o=S.u.o=="org";if(o&&ot=="drive")return driveForm();
+ $("app").innerHTML=`<h2>${t("req")} blood</h2>${o?orgSeg():""}
+ <div class="card"><div class="seg row" ${o?'style="display:none"':""}>${o?"":`<button class="${who=="self"?"on":""}" onclick="who='self';req()">For myself</button>`}<button class="${who=="other"||o?"on":""}" onclick="who='other';req()">For someone else</button></div>
  ${who=="other"||o?`<label>Patient name / description</label><input id="r_pt">`:""}
  <div class="row"><div><label>Blood type needed</label><select id="r_t">${TYPES.map(x=>`<option ${(who=="self"&&!o&&S.u.bt==x)?"selected":""}>${x}</option>`).join("")}</select></div><div><label>Donors needed</label><input id="r_u" type="number" value="2" min="1" max="20"></div></div>
  <label>Hospital / location</label><input id="r_p" placeholder="Type the address or hospital name">
@@ -116,7 +117,7 @@ function req(){const o=S.u.o=="org";
  <div class="row"><div><label>Broadcast radius (km)</label><input id="r_r" type="number" value="15"></div><div><label>Stays active</label><select id="r_h"><option value="6">6 hours</option><option value="24" selected>24 hours</option><option value="48">48 hours</option></select></div></div>
  <label>Note (optional)</label><textarea id="r_n" rows="2" maxlength="140"></textarea>
  <label><input type="checkbox" id="r_e" checked style="width:auto"> Also email donors who may be offline</label>
- <p class="mut">Max 3 requests per day. Requests are logged, and false requests lead to suspension.</p><button onclick="send()">${t("send")}</button></div>`}
+ <p class="mut">Limit: ${o?"10 requests per day and 5 active at once":"3 requests per day and 2 active at once"}. Requests are logged, and false requests lead to suspension.</p><button onclick="send()">${t("send")}</button></div>`}
 let pin=null;
 const pinTxt=()=>pin?`📍 Pin set: ${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}${pin.label?" ("+esc(pin.label)+")":""} · <a href="https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}" target="_blank" rel="noopener">check on map</a> · <a href="#" onclick="pin=null;req();return false">clear</a>`:"";
 function setPin(lat,lng,label){if(isNaN(lat)||isNaN(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return alert("Those coordinates are not valid.");pin={lat,lng,label};if(!$("r_p").value)$("r_p").value=label||`${lat.toFixed(4)}, ${lng.toFixed(4)}`;const b=$("r_pin");b.style.display="";b.innerHTML=pinTxt()}
@@ -129,18 +130,19 @@ function geo(){if(!navigator.geolocation)return alert("Location unavailable. Typ
 function send(){const v=i=>($(i)||{}).value||"";const n=v("r_n"),pl=v("r_p");
  if(!pl&&!pin)return alert("Enter where the blood is needed, or set a map pin.");
  if(BAD.test(n+pl+v("r_pt")))return alert("Please remove offensive language. Requests must stay respectful.");
- if(S.made.filter(r=>Date.now()-r.id<day).length>=3)return alert("Daily limit reached (3 requests). Close or wait for an existing one.");
- if(S.made.filter(r=>r.open!==false&&(!r.exp||r.exp>Date.now())).length>=2)return alert("You already have 2 active requests. Close one that is fulfilled before sending another.");
+ const org=S.u.o=="org",ld=org?10:3,la=org?5:2;
+ if(S.made.filter(r=>Date.now()-r.id<day).length>=ld)return alert(`Daily limit reached (${ld} requests). Close or wait for an existing one.`);
+ if(S.made.filter(r=>r.open!==false&&(!r.exp||r.exp>Date.now())).length>=la)return alert(`You already have ${la} active requests. Close one that is fulfilled before sending another.`);
  const r={id:Date.now(),own:true,type:v("r_t"),units:Number(v("r_u"))||1,place:pl||"Pinned location",lat:pin&&pin.lat,lng:pin&&pin.lng,patient:S.u.o=="org"||who=="other"?v("r_pt"):"self",note:n,exp:Date.now()+Number(v("r_h"))*hr,resp:[]};
  S.made.unshift(r);pin=null;log(`Broadcast sent for ${r.type} at ${pl}`);
  const est=CAN[r.type].length*7+3;S.tab="home";show();alert(`Request sent. About ${est} compatible, eligible donors within ${v("r_r")} km are being notified. Donors who enter the area later will also be alerted${v("r_e")?", and offline donors get an email":""}.`)}
 function drive(){const v=i=>$(i).value;if(!v("d_t")||BAD.test(v("d_t")+v("d_p")))return alert("Enter a clean title and venue.");
  S.drives.unshift({id:"d"+Date.now(),org:S.u.name,title:v("d_t"),date:v("d_d"),place:v("d_p"),going:0,me:false});log("Announced blood drive: "+v("d_t"));S.tab="home";show()}
 function logv(){const ver=S.don.filter(d=>d.ver).length;
- $("app").innerHTML=`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${S.don.length?"Next eligible: "+fmt(nextOk()):"No donations recorded yet."}</div></div>
+ $("app").innerHTML=`${S.u.o=="org"?"":`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${S.don.length?"Next eligible: "+fmt(nextOk()):"No donations recorded yet."}</div></div>
  <div class="card"><h3>Record a donation</h3><label>Date</label><input id="m_d" type="date"><label>Facility</label><input id="m_f"><label>City / location</label><input id="m_c"><button onclick="addD()">Save donation</button></div>
  ${S.don.map(d=>`<div class="card"><b>${fmt(d.d)}</b> ${d.ver?"✔ verified":""}<div class="mut">${esc(d.place)} ${esc(d.city)} · ${esc(d.via)}</div></div>`).join("")}
- <h2>Activity</h2>${histHtml()}`}
+ `}<h2>Activity</h2>${histHtml()}`}
 function histHtml(){let y="",o="";S.hist.forEach(h=>{const d=new Date(h.t),yy=d.getFullYear();if(yy!=y){y=yy;o+=`<h3 style="margin-top:14px">${yy}</h3>`}
  o+=`<div class="mut">${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}, ${d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:false})} · ${esc(h.m)}</div>`});
  return o||'<div class="mut">Requests and responses appear here.</div>'}
@@ -148,20 +150,40 @@ function addD(){const d=$("m_d").value;if(!d||!$("m_f").value)return alert("Add 
  if(new Date(d)>new Date())return alert("The date can’t be in the future.");
  S.don.unshift({d:new Date(d).getTime(),place:$("m_f").value,city:$("m_c").value,via:"Self-recorded",ver:false});S.don.sort((a,b)=>b.d-a.d);log("Recorded a donation at "+$("m_f").value);show()}
 function prof(){const u=S.u;
- $("app").innerHTML=`<div class="card"><div class="row" style="align-items:center"><div style="flex:0 0 72px">${u.img?`<img class="av" src="${u.img}" alt="">`:`<div class="av"></div>`}</div><div><h3>${esc(u.name)}</h3><div class="mut">${esc(u.user)} · ${u.o=="org"?"Organization":esc(u.bt||"Type unknown")}</div></div></div>
- <label>Profile photo</label><input type="file" accept="image/*" onchange="photo(this)">
+ $("app").innerHTML=`<div class="card"><div style="text-align:center">${avatar(u.img)}<div><h3 style="margin:8px 0 2px">${esc(u.name)}</h3><div class="mut">${esc(u.user)} · ${u.o=="org"?"Organization":esc(u.bt||"Type unknown")}</div></div></div>
+ <label>Profile photo</label><input type="file" accept="image/*" onchange="photo(this)">${u.img?`<button class="alt sm" onclick="editPhoto()">Edit photo</button><button class="alt sm" onclick="rmPhoto()">Remove photo</button>`:""}
  ${u.o=="ind"?`<div class="row"><div><label>First name</label><input value="${esc(u.first||"")}" onchange="setNm('first',this.value)"></div><div><label>Last name</label><input value="${esc(u.last||"")}" onchange="setNm('last',this.value)"></div></div>`:""}
  <label>Username</label><input value="${esc(u.user)}" onchange="S.u.user=this.value;sv()">
  ${u.o=="ind"?`<label>Blood type</label><select onchange="S.u.bt=this.value;sv()"><option value="">Unknown</option>${TYPES.map(x=>`<option ${u.bt==x?"selected":""}>${x}</option>`).join("")}</select>`:""}</div>
  <div class="card"><h3>Settings</h3><label>${t("lang")}</label><select onchange="S.lang=this.value;show()">${[["en","English"],["fr","Français"],["ha","Hausa"],["es","Español"]].map(([k,n])=>`<option value="${k}" ${S.lang==k?"selected":""}>${n}</option>`).join("")}</select>
- <label>Donation frequency (months between donations)</label><input type="number" min="1" max="12" value="${S.freq}" onchange="S.freq=this.value;sv()">
+ ${u.o=="org"?"":`<label>Donation frequency (months between donations)</label><input type="number" min="1" max="12" value="${S.freq}" onchange="S.freq=this.value;sv()">
  <label>Alert radius (km)</label><input type="number" min="1" max="100" value="${S.rad}" onchange="S.rad=this.value;sv()">
  <label><input type="checkbox" style="width:auto" ${S.mailB?"checked":""} onchange="S.mailB=this.checked;sv()"> Email me requests when I may be offline</label>
- <label><input type="checkbox" style="width:auto" checked> Share my name with requesters when I respond</label></div>
+ <label><input type="checkbox" style="width:auto" checked> Share my name with requesters when I respond</label>`}</div>
  <div class="card mut">Free SMS isn’t possible from a web app. The Send screen can share a request through your own SMS or WhatsApp. Report any misuse from a request card.<br><button class="alt" onclick="logout()">${lo?"Tap again to confirm log out":"Log out"}</button></div>`}
 let lo=false;
 function logout(){if(!lo){lo=true;prof();setTimeout(()=>{if(lo){lo=false;if(S.u&&S.tab=="me")prof()}},4000);return}lo=false;S.u=null;S.tab="home";show()}
 function setNm(k,v){S.u[k]=v.trim();S.u.name=((S.u.first||"")+" "+(S.u.last||"")).trim();sv();prof()}
-function photo(i){const f=i.files[0];if(!f||f.size>2e6)return alert("Choose an image under 2 MB.");const r=new FileReader();r.onload=()=>{S.u.img=r.result;show()};r.readAsDataURL(f)}
+let E=null,ot="req";
+const AVS="width:110px;height:110px";
+function avatar(img){return img?`<img class="av" style="${AVS}" src="${img}" alt="Profile photo">`:`<svg class="av" style="${AVS}" viewBox="0 0 64 64" role="img" aria-label="No photo"><circle cx="32" cy="32" r="32" fill="var(--line)"/><circle cx="32" cy="25" r="11" fill="var(--mut)"/><path d="M11 56c3-13 13-19 21-19s18 6 21 19a32 32 0 0 1-42 0z" fill="var(--mut)"/></svg>`}
+function photo(i){const f=i.files[0];if(!f)return;if(f.size>8e6)return alert("Choose an image under 8 MB.");const r=new FileReader();r.onload=()=>openEd(r.result);r.readAsDataURL(f)}
+function editPhoto(){openEd(S.u.img)}
+function rmPhoto(){S.u.img="";show()}
+function openEd(src){const im=new Image();im.onload=()=>{E={im,rot:0,z:1,x:0,y:0,g:false};edUI()};im.onerror=()=>alert("That image could not be opened.");im.src=src}
+function edUI(){$("app").innerHTML=`<div class="card"><h2>Edit photo</h2><div style="text-align:center"><canvas id="ed" width="256" height="256" style="width:100%;max-width:280px;border-radius:50%;touch-action:none;background:var(--line)"></canvas></div><p class="mut" style="text-align:center">Drag the photo to reposition it</p><div class="row"><button class="alt" onclick="E.rot=(E.rot+3)%4;edDraw()">⟲ Rotate left</button><button class="alt" onclick="E.rot=(E.rot+1)%4;edDraw()">⟳ Rotate right</button></div><label>Zoom</label><input type="range" min="1" max="3" step="0.05" value="1" oninput="E.z=+this.value;edDraw()"><label><input type="checkbox" style="width:auto" onchange="E.g=this.checked;edDraw()"> Black and white</label><button onclick="edSave()">Save photo</button><button class="alt" onclick="E=null;show()">Cancel</button></div>`;
+ const c=$("ed");let px=null;c.onpointerdown=e=>{px=[e.clientX,e.clientY];c.setPointerCapture(e.pointerId)};c.onpointermove=e=>{if(!px)return;const k=256/c.getBoundingClientRect().width;E.x+=(e.clientX-px[0])*k;E.y+=(e.clientY-px[1])*k;px=[e.clientX,e.clientY];edDraw()};c.onpointerup=()=>{px=null};edDraw()}
+function edDraw(){const c=$("ed"),x=c.getContext("2d"),m=E.im,odd=E.rot%2,w=odd?m.height:m.width,h=odd?m.width:m.height,s=Math.max(256/w,256/h)*E.z;
+ x.fillStyle="#fff";x.fillRect(0,0,256,256);x.save();x.translate(128+E.x,128+E.y);x.rotate(E.rot*Math.PI/2);x.scale(s,s);x.drawImage(m,-m.width/2,-m.height/2);x.restore();
+ if(E.g){const d=x.getImageData(0,0,256,256),p=d.data;for(let i=0;i<p.length;i+=4){const v=.3*p[i]+.59*p[i+1]+.11*p[i+2];p[i]=p[i+1]=p[i+2]=v}x.putImageData(d,0,0)}}
+function edSave(){try{S.u.img=$("ed").toDataURL("image/jpeg",.85)}catch(e){return alert("The photo could not be saved.")}E=null;show()}
+function cancelR(id){const r=S.seed.find(x=>x.id==id);r.me=null;log(`You cancelled your response for ${r.place}`);show()}
+function endTxt(ts){const d=new Date(ts),n=new Date(),k=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(n.getFullYear(),n.getMonth(),n.getDate()))/day),
+ w=k==0?"today":k==1?"tomorrow":d.toLocaleDateString(undefined,{weekday:"long"}),
+ m=Math.max(0,Math.floor((ts-Date.now())/6e4)),dd=Math.floor(m/1440),h=Math.floor(m%1440/60),mi=m%60;
+ return `ends ${w}, ${d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})} · ${dd?dd+"d ":""}${dd||h?h+"h ":""}${mi}m left`}
+function orgSeg(){return `<div class="card seg row" style="padding:8px"><button class="${ot=="req"?"on":""}" onclick="ot='req';req()">Request for someone</button><button class="${ot=="drive"?"on":""}" onclick="ot='drive';req()">Blood drive</button></div>`}
+function driveForm(){$("app").innerHTML=`<h2>Organize a blood drive</h2>${orgSeg()}<div class="card"><label>Title</label><input id="d_t"><label>Date and time</label><input id="d_d" placeholder="e.g. Sat 14 Nov, 9am to 3pm"><label>Venue</label><input id="d_p"><button onclick="drive()">Announce drive</button></div>`}
+setInterval(()=>{if(S.u&&S.tab=="home"&&!E)show()},60000);
 show();
 </script></body></html>
