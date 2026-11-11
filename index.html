@@ -47,17 +47,17 @@ const t=k=>(L[S.lang]||L.en)[k]||L.en[k]||k,$=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=d=>new Date(d).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
 const log=(m)=>{S.hist.unshift({t:Date.now(),m});S.hist=S.hist.slice(0,500)};
-const present=r=>r.resp.filter(x=>x.s=="here").length+(r.me=="here"?1:0);
+const present=r=>r.resp.filter(x=>x.s=="here").length+(r.me=="here"?1:0)+(r.vc||0);
 function nextOk(){const l=S.don.length?Math.max(...S.don.map(d=>d.d)):0,a=l?addM(l,S.freq):0,r=lastRec(),b=r?addM(r,RW):0;return Math.max(a,b)}
 const eligible=()=>Date.now()>=nextOk();
 function tick(){const all=[...S.made,...S.seed];all.forEach(r=>{if(r.open===false)return;
  if(r.exp&&Date.now()>r.exp){r.open=false;r.why="Expired"}
- else if(present(r)>=r.units){r.open=false;r.why="Enough donors present"}})}
+ else if(verified(r)>=r.units){r.open=false;r.why="All needed donations verified"}})}
 function show(){tick();sv();$("tag").textContent=t("tag");
  if(!S.u){auth();return}
  const tabs=[["home","🩸"],["req","➕"],["log","📒"],["me",navAv()]];
  $("nav").innerHTML=tabs.map(([k,i])=>`<button class="${S.tab==k?"on":""}" onclick="S.tab='${k}';show()">${i}<br>${t(k=="home"?"home":k)}</button>`).join("");
- ({home,req,log:logv,me:prof})[S.tab]()}
+ ({home,req,log:logv,me:prof})[S.tab]();banner()}
 function auth(){$("nav").innerHTML="";const o=S.o||"ind";
  $("app").innerHTML=`<div class="card"><h2>Join Lifeline</h2><div class="seg row"><button class="${o=="ind"?"on":""}" onclick="S.o='ind';show()">Individual</button><button class="${o=="org"?"on":""}" onclick="S.o='org';show()">Organization</button></div>
  ${o=="ind"?`<div class="row"><div><label>First name</label><input id="a_f" autocomplete="given-name"></div><div><label>Last name</label><input id="a_ln" autocomplete="family-name"></div></div>`:`<label>Organization name</label><input id="a_n">`}
@@ -81,9 +81,9 @@ function card(r){const p=present(r),open=r.open!==false,mine=r.own,mt=S.u.bt;
  if(!mine&&r.km>S.rad)return"";if(r.rep)return"";
  const ok=eligible();
  let h=`<div class="card" style="${open?"":"opacity:.6"}"><span class="badge">${r.type}</span><b>${esc(r.place)}</b><div class="mut">${mine?"Your request":"For "+esc(r.patient)} · ${mine?esc(r.patient||"self"):r.km+" km away"}${r.exp&&open?" · "+endTxt(r.exp):""}</div>
- ${r.note?`<p>${esc(r.note)}</p>`:""}${r.lat?`<a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" rel="noopener">📍 Open in maps</a>`:""}<div class="mut">${p} present of ${r.units} needed · ${r.resp.filter(x=>x.s=="way").length+(r.me=="way"?1:0)} on the way</div><div class="bar"><i style="width:${Math.min(100,p/r.units*100)}%"></i></div>`;
+ ${r.note?`<p>${esc(r.note)}</p>`:""}${r.lat?`<a href="https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}" target="_blank" rel="noopener">📍 Open in maps</a>`:""}<div class="mut">${p} present · ${verified(r)} verified of ${r.units} needed · ${r.resp.filter(x=>x.s=="way").length+(r.me=="way"?1:0)} on the way</div><div class="bar"><i style="width:${Math.min(100,verified(r)/r.units*100)}%"></i></div>${open&&!mine&&p>=r.units&&verified(r)<r.units?`<div class="note">Enough donors have arrived and are being screened. The request stays open in case some are not eligible.</div>`:""}`;
  if(!open)h+=`<div class="note">Closed: ${r.why||"Closed by requester"}. No need to travel.</div>`;
- else if(mine){h+=r.resp.map((x,i)=>`<div class="mut">${esc(x.n)} – ${x.s=="here"?"at venue":"on the way"} ${x.v?"✔ verified donor":x.s=="here"?`<button class="sm ok" onclick="ver('${r.id}',${i})">Verify donated</button>`:""}</div>`).join("")+
+ else if(mine){h+=r.resp.map((x,i)=>`<div class="mut">${esc(x.n)} – ${x.s=="here"?"at venue":x.s=="out"?"screened out":"on the way"} ${x.v?"✔ verified donor":x.s=="here"?`<button class="sm ok" onclick="ver('${r.id}',${i})">Verify donated</button><button class="sm alt" onclick="screenOut('${r.id}',${i})">Not eligible</button>`:""}</div>`).join("")+
  `<button onclick="closeR('${r.id}')">${t("close")}</button><button class="alt" onclick="demoResp('${r.id}')">Simulate responder</button>${r.patient=="self"?`<button class="ok" onclick="gotBlood('${r.id}')">I received blood</button>`:""}`;
  }else if(selfActive())h+=`<div class="note">You have an active request for blood for yourself, so you cannot respond as a donor right now. Close or complete your own request first.</div>`;
  else if(!ok)h+=`<div class="note">Silent alert: you are not eligible yet. ${whyTxt()}</div>`;
@@ -107,20 +107,27 @@ const selfActive=()=>S.made.some(r=>r.patient=="self"&&r.open!==false&&(!r.exp||
 function commits(){const a=S.seed.filter(r=>r.me&&r.open!==false).map(r=>({l:r.place+" ("+r.type+")"}));S.drives.forEach(d=>{if(d.me)a.push({l:"Blood drive: "+d.title})});return a}
 function dropAll(){S.seed.forEach(r=>{if(r.me)r.me=null});S.drives.forEach(d=>{if(d.me){d.me=false;d.going--;log("Removed from drive "+d.title+": you cannot donate right now")}})}
 let pend=null;
+const PM=2*6e4;
+const verified=r=>r.resp.filter(x=>x.v).length+(r.vc||0);
+const rn=r=>r.patient=="self"?"yourself":(r.patient||"a patient");
+function due(){return S.made.find(r=>r.open!==false&&(!r.exp||r.exp>Date.now())&&present(r)>=r.units&&verified(r)<r.units&&Date.now()>=(r.snz||0))}
+function banner(){const r=S.u&&!E&&due(),a=$("app");if(!r||!a||$("pr"))return;a.insertAdjacentHTML("afterbegin",`<div id="pr" class="note"><b>Enough donors have arrived for ${esc(rn(r))}.</b><br>${present(r)} present, ${verified(r)} of ${r.units} donations verified. If screening results are still pending, keep the request open. Close it now only if you already have enough confirmed donors. It closes by itself once all ${r.units} donations are verified.<br><button onclick="closeR('${r.id}')">Close request</button><button class="alt" onclick="keepOpen('${r.id}')">Keep open</button><div class="mut">You will be reminded again in 2 minutes (the full app would use about 30 minutes).</div></div>`)}
+function keepOpen(id){const r=S.made.find(x=>x.id==id);r.snz=Date.now()+PM;log(`You kept the request for ${rn(r)} open while waiting for screening results`);show()}
+function screenOut(id,i){const r=S.made.find(x=>x.id==id);r.resp[i].s="out";log(`A responder was marked not eligible after screening for ${rn(r)} at ${r.place}`);show()}
 function conflictUI(){$("app").innerHTML=`<div class="card"><h2>Conflict: request and donation</h2><p>You are about to request blood for yourself, but you have donor commitments:</p><ul>${commits().map(x=>`<li>${esc(x.l)}</li>`).join("")}</ul><p>You cannot request blood for yourself and donate at the same time. Which is still true?</p><button onclick="needBlood()">I still need blood: cancel my donor responses and send my request</button><button class="alt" onclick="noNeed()">I no longer need blood: keep my donor responses and discard the request</button></div>`}
-function needBlood(){const r=pend.r;pend=null;S.seed.forEach(x=>{if(x.me)x.me=null});S.drives.forEach(d=>{if(d.me){d.me=false;d.going--}});log("Cancelled your donor responses because you requested blood for yourself");S.made.unshift(r);pin=null;log(`Broadcast sent for ${r.type} at ${r.place}`);S.tab="home";show()}
+function needBlood(){const r=pend.r;pend=null;S.seed.forEach(x=>{if(x.me)x.me=null});S.drives.forEach(d=>{if(d.me){d.me=false;d.going--}});log("Cancelled your donor responses because you requested blood for yourself");S.made.unshift(r);pin=null;log(`Request sent for ${rn(r)} (${r.type}, ${r.units} donors) at ${r.place}`);S.tab="home";show()}
 function noNeed(){pend=null;log("Discarded your request for yourself to keep your donor responses");S.tab="home";show()}
 function gotBlood(id){const r=S.made.find(x=>x.id==id);r.open=false;r.why="Blood received";S.rec.unshift({d:Date.now(),place:r.place,via:"Lifeline request"});dropAll();log(`You received blood (${r.place}). Your donor waiting period has started`);show()}
 function addB(){const d=$("b_d").value;if(!d||!$("b_f").value)return alert("Add the date and the facility.");if(new Date(d)>new Date())return alert("The date cannot be in the future.");S.rec.unshift({d:new Date(d).getTime(),place:$("b_f").value,via:"Self-recorded"});S.rec.sort((a,b)=>b.d-a.d);dropAll();log("Recorded blood received at "+$("b_f").value);show()}
 const navAv=()=>S.u&&S.u.img?`<img src="${S.u.img}" alt="" style="width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle">`:`<svg width="26" height="26" viewBox="0 0 64 64" style="vertical-align:middle" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="var(--line)"/><circle cx="32" cy="25" r="11" fill="var(--mut)"/><path d="M11 56c3-13 13-19 21-19s18 6 21 19a32 32 0 0 1-42 0z" fill="var(--mut)"/></svg>`;
 function closer(){S.seed.forEach(r=>r.km=Math.max(1,r.km-10));show()}
-function resp(id,s){const r=S.seed.find(x=>x.id==id);r.me=s;log(`You marked "${s=="way"?"on my way":"present"}" for ${r.place} (${r.type})`);show()}
-function selfVer(id){const r=S.seed.find(x=>x.id==id);S.don.unshift({d:Date.now(),place:r.place,city:"",via:"Lifeline request",ver:true});log(`Donation verified at ${r.place}`);r.me=null;dropAll();show()}
+function resp(id,s){const r=S.seed.find(x=>x.id==id);r.me=s;log(`You marked "${s=="way"?"on my way":"present"}" for ${rn(r)} at ${r.place} (${r.type})`);show()}
+function selfVer(id){const r=S.seed.find(x=>x.id==id);S.don.unshift({d:Date.now(),place:r.place,city:"",via:"Lifeline request",for:r.patient,ver:true});r.vc=(r.vc||0)+1;log(`Donation verified for ${rn(r)} at ${r.place}`);r.me=null;dropAll();show()}
 function rep(id){const r=S.seed.find(x=>x.id==id);r.rep=true;log("Reported a request for review");show()}
 function going(id){const d=S.drives.find(x=>x.id==id);d.me=!d.me;d.going+=d.me?1:-1;show()}
-function closeR(id){const r=S.made.find(x=>x.id==id);r.open=false;r.why="Closed by requester";log(`You closed your request at ${r.place}`);show()}
+function closeR(id){const r=S.made.find(x=>x.id==id);r.open=false;r.why="Closed by requester";log(`You closed the request for ${rn(r)} at ${r.place}`);show()}
 function demoResp(id){const r=S.made.find(x=>x.id==id);r.resp.push({n:["Ibrahim","Mary","Chidi","Sade","Paul"][r.resp.length%5],s:r.resp.length%2?"here":"way"});show()}
-function ver(id,i){const r=S.made.find(x=>x.id==id);r.resp[i].v=true;log(`Verified ${r.resp[i].n} as a donor at ${r.place}`);show()}
+function ver(id,i){const r=S.made.find(x=>x.id==id);r.resp[i].v=true;log(`Verified ${r.resp[i].n} as a donor for ${rn(r)} at ${r.place}`);show()}
 let who="self";
 function req(){const o=S.u.o=="org";if(o&&ot=="drive")return driveForm();
  $("app").innerHTML=`<h2>${t("req")} blood</h2>${o?orgSeg():""}
@@ -153,7 +160,7 @@ function send(){const v=i=>($(i)||{}).value||"";const n=v("r_n"),pl=v("r_p");
  const r={id:Date.now(),own:true,type:v("r_t"),units:Number(v("r_u"))||1,place:pl||"Pinned location",lat:pin&&pin.lat,lng:pin&&pin.lng,patient:S.u.o=="org"||who=="other"?v("r_pt"):"self",note:n,exp:Date.now()+Number(v("r_h"))*hr,resp:[]};
  if(r.patient=="self"&&S.made.some(x=>x.patient=="self"&&x.open!==false))return alert("You already have an active request for yourself. Close it before sending another.");
  if(r.patient=="self"&&commits().length){pend={r};return conflictUI()}
- S.made.unshift(r);pin=null;log(`Broadcast sent for ${r.type} at ${pl}`);
+ S.made.unshift(r);pin=null;log(`Request sent for ${rn(r)} (${r.type}, ${r.units} donors) at ${pl||r.place}`);
  const est=CAN[r.type].length*7+3;S.tab="home";show();alert(`Request sent. About ${est} compatible, eligible donors within ${v("r_r")} km are being notified. Donors who enter the area later will also be alerted${v("r_e")?", and offline donors get an email":""}.`)}
 function drive(){const v=i=>($(i)||{}).value||"",pl=v("r_p");if(!v("d_t")||(!pl&&!pin)||BAD.test(v("d_t")+pl+v("r_n")))return alert("Enter a clean title and a venue or map pin.");
  S.drives.unshift({id:"d"+Date.now(),org:S.u.name,title:v("d_t"),date:v("d_d"),place:pl||"Pinned location",lat:pin&&pin.lat,lng:pin&&pin.lng,rad:v("r_r"),note:v("r_n"),going:0,me:false});pin=null;log("Announced blood drive: "+v("d_t"));S.tab="home";show();alert(`Blood drive announced. Donors within about ${v("r_r")||15} km of the venue are being notified${v("r_e")?", with an email for those who may be offline":""}.`)}
@@ -162,7 +169,7 @@ function logv(){const ver=S.don.filter(d=>d.ver).length;
  <div class="card"><h3>Record a donation</h3><label>Date</label><input id="m_d" type="date"><label>Facility</label><input id="m_f"><label>City / location</label><input id="m_c"><button onclick="addD()">Save donation</button></div>
  <div class="card"><h3>Record blood I received</h3><label>Date</label><input id="b_d" type="date"><label>Facility</label><input id="b_f"><button onclick="addB()">Save</button><p class="mut">After receiving blood you must wait ${RW} months before donating. Alerts and sign-ups are paused until then.</p></div>
  ${S.rec.map(d=>`<div class="card"><b>${fmt(d.d)}</b> 🩸 Received blood<div class="mut">${esc(d.place)} · ${esc(d.via)}</div></div>`).join("")}
- ${S.don.map(d=>`<div class="card"><b>${fmt(d.d)}</b> ${d.ver?"✔ verified":""}<div class="mut">${esc(d.place)} ${esc(d.city)} · ${esc(d.via)}</div></div>`).join("")}
+ ${S.don.map(d=>`<div class="card"><b>${fmt(d.d)}</b> ${d.ver?"✔ verified":""}<div class="mut">${esc(d.place)} ${esc(d.city)} · ${esc(d.via)}${d.for?" · for "+esc(d.for):""}</div></div>`).join("")}
  `}<h2>Activity</h2>${histHtml()}`}
 function histHtml(){let y="",o="";S.hist.forEach(h=>{const d=new Date(h.t),yy=d.getFullYear();if(yy!=y){y=yy;o+=`<h3 style="margin-top:14px">${yy}</h3>`}
  o+=`<div class="mut">${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}, ${d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:false})} · ${esc(h.m)}</div>`});
@@ -198,7 +205,7 @@ function edDraw(){const c=$("ed"),x=c.getContext("2d"),m=E.im,odd=E.rot%2,w=odd?
  x.fillStyle="#fff";x.fillRect(0,0,256,256);x.save();x.translate(128+E.x,128+E.y);x.rotate(E.rot*Math.PI/2);x.scale(s,s);x.drawImage(m,-m.width/2,-m.height/2);x.restore();
  if(E.g){const d=x.getImageData(0,0,256,256),p=d.data;for(let i=0;i<p.length;i+=4){const v=.3*p[i]+.59*p[i+1]+.11*p[i+2];p[i]=p[i+1]=p[i+2]=v}x.putImageData(d,0,0)}}
 function edSave(){try{S.u.img=$("ed").toDataURL("image/jpeg",.85)}catch(e){return alert("The photo could not be saved.")}E=null;show()}
-function cancelR(id){const r=S.seed.find(x=>x.id==id);r.me=null;log(`You cancelled your response for ${r.place}`);show()}
+function cancelR(id){const r=S.seed.find(x=>x.id==id);r.me=null;log(`You cancelled your response for ${rn(r)} at ${r.place}`);show()}
 function endTxt(ts){const d=new Date(ts),n=new Date(),k=Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(n.getFullYear(),n.getMonth(),n.getDate()))/day),
  w=k==0?"today":k==1?"tomorrow":d.toLocaleDateString(undefined,{weekday:"long"}),
  m=Math.max(0,Math.floor((ts-Date.now())/6e4)),dd=Math.floor(m/1440),h=Math.floor(m%1440/60),mi=m%60;
@@ -206,6 +213,6 @@ function endTxt(ts){const d=new Date(ts),n=new Date(),k=Math.round((new Date(d.g
 function orgSeg(){return `<div class="card seg row" style="padding:8px"><button class="${ot=="req"?"on":""}" onclick="ot='req';req()">Request for someone</button><button class="${ot=="drive"?"on":""}" onclick="ot='drive';req()">Blood drive</button></div>`}
 function locBlock(){return `<label>Venue / location</label><input id="r_p" placeholder="Type the venue address"><div class="row" style="flex-wrap:wrap"><button class="alt sm" onclick="geo()">📍 Use my location</button><button class="alt sm" onclick="openMap('g')">Pick in Google Maps</button><button class="alt sm" onclick="openMap('a')">Pick in Apple Maps</button></div><label>Paste a shared map link or coordinates</label><div class="row"><input id="r_ln" placeholder="Link from your maps app, or 9.9167, 8.8903" style="flex:3"><button class="sm" style="flex:1" onclick="fromLink()">Set pin</button></div><div id="r_pin" class="note" style="${pin?"":"display:none"}">${pinTxt()}</div>`}
 function driveForm(){$("app").innerHTML=`<h2>Organize a blood drive</h2>${orgSeg()}<div class="card"><label>Title</label><input id="d_t"><label>Date and time</label><input id="d_d" placeholder="e.g. Sat 14 Nov, 9am to 3pm">${locBlock()}<label>Broadcast radius (km)</label><input id="r_r" type="number" value="15"><label>Note (optional)</label><textarea id="r_n" rows="2" maxlength="140"></textarea><label><input type="checkbox" id="r_e" checked style="width:auto"> Also email donors who may be offline</label><button onclick="drive()">Announce drive</button></div>`}
-setInterval(()=>{if(S.u&&S.tab=="home"&&!E)show()},60000);
+setInterval(()=>{if(S.u&&S.tab=="home"&&!E)show();else banner()},60000);
 show();
 </script></body></html>
