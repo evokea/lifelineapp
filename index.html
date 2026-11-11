@@ -48,21 +48,21 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const fmt=d=>new Date(d).toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
 const log=(m)=>{S.hist.unshift({t:Date.now(),m});S.hist=S.hist.slice(0,500)};
 const present=r=>r.resp.filter(x=>x.s=="here").length+(r.me=="here"?1:0)+(r.vc||0);
-function nextOk(){const l=S.don.length?Math.max(...S.don.map(d=>d.d)):0,a=l?addM(l,S.freq):0,r=lastRec(),b=r?addM(r,RW):0;return Math.max(a,b)}
-const eligible=()=>Date.now()>=nextOk();
+function nextOk(){const l=S.don.length?Math.max(...S.don.map(d=>d.d)):0,a=l?addM(l,S.freq):0,r=lastRec(),b=r?addM(r,RW):0;return Math.max(a,b,S.u&&S.u.dob&&ageSt()=="young"?ageDate():0)}
+const eligible=()=>ageSt()=="ok"&&Date.now()>=nextOk();
 function tick(){const all=[...S.made,...S.seed];all.forEach(r=>{if(r.open===false)return;
  if(r.exp&&Date.now()>r.exp){r.open=false;r.why="Expired"}
  else if(verified(r)>=r.units){r.open=false;r.why="All needed donations verified"}})}
-function show(){tick();sv();$("tag").textContent=t("tag");
+function show(){tick();chkAge();sv();$("tag").textContent=t("tag");
  if(!S.u){auth();return}
  const tabs=[["home","🩸"],["req","➕"],["log","📒"],["me",navAv()]];
  $("nav").innerHTML=tabs.map(([k,i])=>`<button class="${S.tab==k?"on":""}" onclick="S.tab='${k}';show()">${i}<br>${t(k=="home"?"home":k)}</button>`).join("");
- ({home,req,log:logv,me:prof})[S.tab]();banner()}
+ ({home,req,log:logv,me:prof})[S.tab]();banner();notes()}
 function auth(){$("nav").innerHTML="";const o=S.o||"ind";
  $("app").innerHTML=`<div class="card"><h2>Join Lifeline</h2><div class="seg row"><button class="${o=="ind"?"on":""}" onclick="S.o='ind';show()">Individual</button><button class="${o=="org"?"on":""}" onclick="S.o='org';show()">Organization</button></div>
  ${o=="ind"?`<div class="row"><div><label>First name</label><input id="a_f" autocomplete="given-name"></div><div><label>Last name</label><input id="a_ln" autocomplete="family-name"></div></div>`:`<label>Organization name</label><input id="a_n">`}
  <label>Phone or email</label><input id="a_c" placeholder="+234… or you@mail.com">
- ${o=="ind"?`<div class="row"><div><label>Sex</label><select id="a_s"><option>Female</option><option>Male</option><option>Other</option></select></div><div><label>Age</label><input id="a_a" type="number" min="16" max="100"></div></div>
+ ${o=="ind"?`<div class="row"><div><label>Sex</label><select id="a_s"><option>Female</option><option>Male</option><option>Other</option></select></div><div><label>Date of birth</label><input id="a_a" type="date"></div></div>
  <div class="row"><div><label>Blood type</label><select id="a_b">${TYPES.map(x=>`<option>${x}</option>`).join("")}<option value="">Unknown</option></select></div><div><label>City / area</label><input id="a_l"></div></div>
  <div class="row"><div><label>Weight (kg)</label><input id="a_w" type="number"></div><div><label>Last known haemoglobin</label><input id="a_h" placeholder="g/dL"></div></div>
  <label>Conditions / medication (private)</label><input id="a_m" placeholder="Optional">`:`<label>Licence / registration no.</label><input id="a_r"><label>Address</label><input id="a_l">`}
@@ -73,8 +73,8 @@ function reg(o){const g=i=>($(i)||{}).value||"";
  const nm=o=="ind"?(g("a_f").trim()+" "+g("a_ln").trim()).trim():g("a_n").trim();
  if(o=="ind"&&(!g("a_f").trim()||!g("a_ln").trim()))return alert("Enter both your first name and last name.");
  if(g("a_v")!="1234"||!nm||!/(@|\+?\d{7,})/.test(g("a_c")))return alert("Enter a name, a valid phone or email, and the demo code 1234.");
- if(o=="ind"&&(Number(g("a_a"))<18||Number(g("a_a"))>65))return alert("Donors must be 18–65. You can still use the app to request blood: enter 18 if requesting only.");
- S.u={o,name:nm,first:g("a_f").trim(),last:g("a_ln").trim(),user:"@"+(o=="ind"?g("a_f").trim():nm.split(" ")[0]).toLowerCase().replace(/[^a-z0-9]/g,"")+Math.floor(Math.random()*90+10),contact:g("a_c"),sex:g("a_s"),age:g("a_a"),bt:g("a_b"),loc:g("a_l"),wt:g("a_w"),hb:g("a_h"),med:g("a_m"),reg:g("a_r"),img:""};
+ if(o=="ind"&&(!g("a_a")||ageOf({dob:g("a_a")})<MINACC))return alert(`Enter your date of birth. You must be at least ${MINACC} to create an account. A parent or guardian can ask for blood on your behalf.`);
+ S.u={o,name:nm,first:g("a_f").trim(),last:g("a_ln").trim(),user:"@"+(o=="ind"?g("a_f").trim():nm.split(" ")[0]).toLowerCase().replace(/[^a-z0-9]/g,"")+Math.floor(Math.random()*90+10),contact:g("a_c"),sex:g("a_s"),dob:g("a_a"),bt:g("a_b"),loc:g("a_l"),wt:g("a_w"),hb:g("a_h"),med:g("a_m"),reg:g("a_r"),img:"",ds:ageSt(g("a_a"))};if(o=="ind"&&S.u.ds!="ok")S.u.nt=[ageIntro(S.u.ds)];
  S.tab="home";show()}
 function card(r){const p=present(r),open=r.open!==false,mine=r.own,mt=S.u.bt;
  const match=mine||(mt&&CAN[r.type].includes(mt));if(!match&&!mine)return"";
@@ -86,7 +86,7 @@ function card(r){const p=present(r),open=r.open!==false,mine=r.own,mt=S.u.bt;
  else if(mine){h+=r.resp.map((x,i)=>`<div class="mut">${esc(x.n)} – ${x.s=="here"?"at venue":x.s=="out"?"screened out":"on the way"} ${x.v?"✔ verified donor":x.s=="here"?`<button class="sm ok" onclick="ver('${r.id}',${i})">Verify donated</button><button class="sm alt" onclick="screenOut('${r.id}',${i})">Not eligible</button>`:""}</div>`).join("")+
  `<button onclick="closeR('${r.id}')">${t("close")}</button><button class="alt" onclick="demoResp('${r.id}')">Simulate responder</button>${r.patient=="self"?`<button class="ok" onclick="gotBlood('${r.id}')">I received blood</button>`:""}`;
  }else if(selfActive())h+=`<div class="note">You have an active request for blood for yourself, so you cannot respond as a donor right now. Close or complete your own request first.</div>`;
- else if(!ok)h+=`<div class="note">Silent alert: you are not eligible yet. ${whyTxt()}</div>`;
+ else if(!ok)h+=`<div class="note">Silent alert: you cannot respond as a donor. ${whyTxt()}</div>`;
  else{if(r.me=="here"){h+=`<div class="note">You are marked present. Waiting for the requester to verify your donation.</div><button class="ok sm" onclick="selfVer('${r.id}')">Demo: requester verifies me</button><button class="alt sm" onclick="cancelR('${r.id}')">Withdraw</button>`}
   else if(r.me=="way")h+=`<div class="note">You are marked as on your way. Cancel if your plans change so others are not expecting you.</div><button onclick="resp('${r.id}','here')">${t("here")}</button><button class="alt" onclick="cancelR('${r.id}')">Cancel my response</button>`;
   else if(S.seed.some(x=>x.me&&x.open!==false&&x.id!=r.id))h+=`<div class="note">You are already responding to another request. Cancel that response first if you want to respond here.</div>`;
@@ -95,18 +95,33 @@ function card(r){const p=present(r),open=r.open!==false,mine=r.own,mt=S.u.bt;
  return h+"</div>"}
 function home(){const all=[...S.made,...S.seed];const ok=eligible();
  const org=S.u.o=="org",cs=(org?all.filter(r=>r.own):all).map(card).join("");
- const ds=S.drives.map(d=>`<div class="card"><h3>${esc(d.title)}</h3><div class="mut">${esc(d.org)} · ${esc(d.date)} · ${esc(d.place)}</div>${d.note?`<p>${esc(d.note)}</p>`:""}${d.lat?`<a href="https://www.google.com/maps/search/?api=1&query=${d.lat},${d.lng}" target="_blank" rel="noopener">📍 Open in maps</a>`:""}<p>${d.going} people plan to attend</p>${S.u.o=="ind"?(d.me?`<button class="alt" onclick="going('${d.id}')">✔ I will attend (tap to undo)</button>`:selfActive()?`<div class="note">You have an active request for blood for yourself, so you cannot sign up to donate right now.</div>`:!eligible()?`<div class="note">${whyTxt()} Sign-up opens when you can donate.</div>`:`<button onclick="going('${d.id}')">I will attend</button>`):""}</div>`).join("");
- $("app").innerHTML=`<h2>${org?"Your requests":"Active requests near you"}</h2>${selfActive()?`<div class="note">You have an active request for blood for yourself, so donor responses are paused.</div>`:""}${!ok&&S.u.o=="ind"?`<div class="note">${whyTxt()} Alerts will be silent until then.</div>`:""}${cs||(org?`<div class="card mut">You have no requests yet. Use the Request tab to ask for donors or announce a blood drive.</div>`:`<div class="card mut">No active requests match your blood type within ${S.rad} km. You will be alerted if one appears or if you move into range.</div>`)}
+ const ds=S.drives.map(d=>`<div class="card"><h3>${esc(d.title)}</h3><div class="mut">${esc(d.org)} · ${esc(d.date)} · ${esc(d.place)}</div>${d.note?`<p>${esc(d.note)}</p>`:""}${d.lat?`<a href="https://www.google.com/maps/search/?api=1&query=${d.lat},${d.lng}" target="_blank" rel="noopener">📍 Open in maps</a>`:""}<p>${d.going} people plan to attend</p>${S.u.o=="ind"?(d.me?`<button class="alt" onclick="going('${d.id}')">✔ I will attend (tap to undo)</button>`:selfActive()?`<div class="note">You have an active request for blood for yourself, so you cannot sign up to donate right now.</div>`:!eligible()?`<div class="note">${whyTxt()} You cannot sign up to donate while this applies.</div>`:`<button onclick="going('${d.id}')">I will attend</button>`):""}</div>`).join("");
+ $("app").innerHTML=`<h2>${org?"Your requests":"Active requests near you"}</h2>${selfActive()?`<div class="note">You have an active request for blood for yourself, so donor responses are paused.</div>`:""}${!ok&&S.u.o=="ind"?`<div class="note">${whyTxt()} Donor alerts stay silent while this applies.</div>`:""}${cs||(org?`<div class="card mut">You have no requests yet. Use the Request tab to ask for donors or announce a blood drive.</div>`:`<div class="card mut">No active requests match your blood type within ${S.rad} km. You will be alerted if one appears or if you move into range.</div>`)}
  ${org?"":`<button class="alt sm" onclick="closer()">Demo: travel into range of distant requests</button>`}<h2>Blood drives</h2>${ds}`}
 S.rec=S.rec||[];const RW=12;
 const addM=(t,m)=>{const n=new Date(t);n.setMonth(n.getMonth()+Number(m));return n.getTime()};
 function lastRec(){return S.rec.length?Math.max(...S.rec.map(d=>d.d)):0}
 function recWait(){const r=lastRec();return r>0&&nextOk()>Date.now()&&addM(r,RW)>=nextOk()}
-function whyTxt(){return recWait()?`You received blood on ${fmt(lastRec())}, so you cannot donate until ${fmt(nextOk())}.`:`Your wait period ends ${fmt(nextOk())}.`}
+function whyTxt(){if(ageSt()=="young")return `You are under ${DMIN}, the minimum age to donate. You can donate from ${fmt(nextOk())}.`;if(ageSt()=="old")return `You are above the donor age limit of ${DMAX}, so donor responses are turned off. Some blood services accept older regular donors, so ask your local blood service.`;return recWait()?`You received blood on ${fmt(lastRec())}, so you cannot donate until ${fmt(nextOk())}.`:`Your wait period ends ${fmt(nextOk())}.`}
 const selfActive=()=>S.made.some(r=>r.patient=="self"&&r.open!==false&&(!r.exp||r.exp>Date.now()));
 function commits(){const a=S.seed.filter(r=>r.me&&r.open!==false).map(r=>({l:r.place+" ("+r.type+")"}));S.drives.forEach(d=>{if(d.me)a.push({l:"Blood drive: "+d.title})});return a}
 function dropAll(){S.seed.forEach(r=>{if(r.me)r.me=null});S.drives.forEach(d=>{if(d.me){d.me=false;d.going--;log("Removed from drive "+d.title+": you cannot donate right now")}})}
 let pend=null;
+const DMIN=18,DMAX=65,MINACC=16;
+let lf={q:"",k:"",m:""};
+function kindOf(m){return /^You marked|cancelled your response|^Removed from drive/.test(m)?"resp":/Donation verified|Recorded a donation|received blood|Recorded blood/.test(m)?"don":/^Reported/.test(m)?"other":"req"}
+function logMatch(h){const d=new Date(h.t);if(lf.m&&(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"))!=lf.m)return false;if(lf.k&&kindOf(h.m)!=lf.k)return false;const q=lf.q.trim().toLowerCase();if(!q)return true;const s=(h.m+" "+d.toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"})+" "+d.toLocaleDateString(undefined,{month:"short"})).toLowerCase();return q.split(/\s+/).every(w=>s.includes(w))}
+function hl(){const e=$("hl");if(e)e.innerHTML=histHtml()}
+function logTools(){const o=(v,l)=>`<option value="${v}" ${lf.k==v?"selected":""}>${l}</option>`;return `<div class="card"><input id="lq" type="search" placeholder="Search the log: name, hospital, month, year…" value="${esc(lf.q)}" oninput="lf.q=this.value;hl()"><div class="row"><select onchange="lf.k=this.value;hl()">${o("","All types")}${o("req","Requests I made")}${o("resp","My responses")}${o("don","Donations")}${o("other","Reports")}</select><input type="month" value="${lf.m}" onchange="lf.m=this.value;hl()"></div><button class="alt sm" onclick="lf={q:'',k:'',m:''};logv()">Clear filters</button></div>`}
+function ageOf(u){if(u.dob){const d=new Date(u.dob),n=new Date();let a=n.getFullYear()-d.getFullYear();if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--;return a}return Number(u.age)||30}
+function ageSt(dob){const a=ageOf(dob===undefined?S.u:{dob});return a<DMIN?"young":a>DMAX?"old":"ok"}
+function ageDate(){const d=new Date(S.u.dob);d.setFullYear(d.getFullYear()+DMIN);return d.getTime()}
+function ageIntro(st){return st=="young"?`You are under ${DMIN}, so you cannot respond to requests as a donor for now. You can still ask for blood for yourself or someone else. The restriction is lifted automatically when you turn ${DMIN}, and you will be notified.`:`You are above the donor age limit of ${DMAX}, so you cannot respond to requests as a donor. You can still ask for blood for yourself or someone else.`}
+function chkAge(){const u=S.u;if(!u||u.o!="ind")return;const st=ageSt();if(u.ds===undefined){u.ds=st;return}if(u.ds==st)return;
+ const m=st=="ok"?(u.ds=="young"?`You are now old enough to donate. Your age restriction has been removed, and you can respond as a donor again if you are otherwise eligible.`:`Your age is within the donor range again, so donor responses are available if you are otherwise eligible.`):st=="old"?`You have passed the donor age limit of ${DMAX}. You can still request blood, but donor responses and drive sign-ups are now turned off.`:`Based on your date of birth you are under ${DMIN}, so donor responses are turned off until you turn ${DMIN}.`;
+ if(st!="ok")dropAll();u.nt=(u.nt||[]).concat(m);log(m);u.ds=st}
+function notes(){const n=S.u&&S.u.nt||[];if(!n.length||E||$("nt"))return;$("app").insertAdjacentHTML("afterbegin",`<div id="nt" class="note">${n.map(x=>`<div>🔔 ${esc(x)}</div>`).join("")}<button class="sm" onclick="S.u.nt=[];show()">OK</button></div>`)}
+function setDob(v){if(!v)return;if(ageOf({dob:v})<MINACC)return alert(`The minimum age to use Lifeline is ${MINACC}.`);S.u.dob=v;show()}
 const PM=2*6e4;
 const verified=r=>r.resp.filter(x=>x.v).length+(r.vc||0);
 const rn=r=>r.patient=="self"?"yourself":(r.patient||"a patient");
@@ -165,15 +180,15 @@ function send(){const v=i=>($(i)||{}).value||"";const n=v("r_n"),pl=v("r_p");
 function drive(){const v=i=>($(i)||{}).value||"",pl=v("r_p");if(!v("d_t")||(!pl&&!pin)||BAD.test(v("d_t")+pl+v("r_n")))return alert("Enter a clean title and a venue or map pin.");
  S.drives.unshift({id:"d"+Date.now(),org:S.u.name,title:v("d_t"),date:v("d_d"),place:pl||"Pinned location",lat:pin&&pin.lat,lng:pin&&pin.lng,rad:v("r_r"),note:v("r_n"),going:0,me:false});pin=null;log("Announced blood drive: "+v("d_t"));S.tab="home";show();alert(`Blood drive announced. Donors within about ${v("r_r")||15} km of the venue are being notified${v("r_e")?", with an email for those who may be offline":""}.`)}
 function logv(){const ver=S.don.filter(d=>d.ver).length;
- $("app").innerHTML=`${S.u.o=="org"?"":`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${nextOk()?"Next eligible: "+fmt(nextOk())+(recWait()?" (waiting period after receiving blood)":""):"No donations recorded yet."}</div></div>
+ $("app").innerHTML=`${S.u.o=="org"?"":`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${ageSt()=="old"?"Donating is not available at your age.":nextOk()?"Next eligible: "+fmt(nextOk())+(recWait()?" (waiting period after receiving blood)":""):"No donations recorded yet."}</div></div>
  <div class="card"><h3>Record a donation</h3><label>Date</label><input id="m_d" type="date"><label>Facility</label><input id="m_f"><label>City / location</label><input id="m_c"><button onclick="addD()">Save donation</button></div>
  <div class="card"><h3>Record blood I received</h3><label>Date</label><input id="b_d" type="date"><label>Facility</label><input id="b_f"><button onclick="addB()">Save</button><p class="mut">After receiving blood you must wait ${RW} months before donating. Alerts and sign-ups are paused until then.</p></div>
  ${S.rec.map(d=>`<div class="card"><b>${fmt(d.d)}</b> 🩸 Received blood<div class="mut">${esc(d.place)} · ${esc(d.via)}</div></div>`).join("")}
  ${S.don.map(d=>`<div class="card"><b>${fmt(d.d)}</b> ${d.ver?"✔ verified":""}<div class="mut">${esc(d.place)} ${esc(d.city)} · ${esc(d.via)}${d.for?" · for "+esc(d.for):""}</div></div>`).join("")}
- `}<h2>Activity</h2>${histHtml()}`}
-function histHtml(){let y="",o="";S.hist.forEach(h=>{const d=new Date(h.t),yy=d.getFullYear();if(yy!=y){y=yy;o+=`<h3 style="margin-top:14px">${yy}</h3>`}
+ `}<h2>Activity</h2>${logTools()}<div id="hl">${histHtml()}</div>`}
+function histHtml(){let y="",o="";const L2=S.hist.filter(logMatch);if(S.hist.length)o+=`<div class="mut">${L2.length} of ${S.hist.length} entries</div>`;L2.forEach(h=>{const d=new Date(h.t),yy=d.getFullYear();if(yy!=y){y=yy;o+=`<h3 style="margin-top:14px">${yy}</h3>`}
  o+=`<div class="mut">${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}, ${d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:false})} · ${esc(h.m)}</div>`});
- return o||'<div class="mut">Requests and responses appear here.</div>'}
+ return S.hist.length?(L2.length?o:o+'<div class="mut">No entries match your search.</div>'):'<div class="mut">Requests and responses appear here.</div>'}
 function addD(){const d=$("m_d").value;if(!d||!$("m_f").value)return alert("Add the date and the facility.");
  if(new Date(d)>new Date())return alert("The date can’t be in the future.");
  S.don.unshift({d:new Date(d).getTime(),place:$("m_f").value,city:$("m_c").value,via:"Self-recorded",ver:false});S.don.sort((a,b)=>b.d-a.d);log("Recorded a donation at "+$("m_f").value);dropAll();show()}
@@ -182,7 +197,7 @@ function prof(){const u=S.u;
  <label>Profile photo</label><input type="file" accept="image/*" onchange="photo(this)">${u.img?`<button class="alt sm" onclick="editPhoto()">Edit photo</button><button class="alt sm" onclick="rmPhoto()">Remove photo</button>`:""}
  ${u.o=="ind"?`<div class="row"><div><label>First name</label><input value="${esc(u.first||"")}" onchange="setNm('first',this.value)"></div><div><label>Last name</label><input value="${esc(u.last||"")}" onchange="setNm('last',this.value)"></div></div>`:""}
  <label>Username</label><input value="${esc(u.user)}" onchange="S.u.user=this.value;sv()">
- ${u.o=="ind"?`<label>Blood type</label><select onchange="S.u.bt=this.value;sv()"><option value="">Unknown</option>${TYPES.map(x=>`<option ${u.bt==x?"selected":""}>${x}</option>`).join("")}</select>`:""}</div>
+ ${u.o=="ind"?`<label>Date of birth</label><input type="date" value="${esc(u.dob||"")}" onchange="setDob(this.value)"><p class="mut">Your age decides whether you can donate blood. In the full app, changing it would need ID verification.</p><label>Blood type</label><select onchange="S.u.bt=this.value;sv()"><option value="">Unknown</option>${TYPES.map(x=>`<option ${u.bt==x?"selected":""}>${x}</option>`).join("")}</select>`:""}</div>
  <div class="card"><h3>Settings</h3><label>${t("lang")}</label><select onchange="S.lang=this.value;show()">${[["en","English"],["fr","Français"],["ha","Hausa"],["es","Español"]].map(([k,n])=>`<option value="${k}" ${S.lang==k?"selected":""}>${n}</option>`).join("")}</select>
  ${u.o=="org"?"":`<label>Donation frequency (months between donations)</label><input type="number" min="1" max="12" value="${S.freq}" onchange="S.freq=this.value;sv()">
  <label>Alert radius (km)</label><input type="number" min="1" max="100" value="${S.rad}" onchange="S.rad=this.value;sv()">
