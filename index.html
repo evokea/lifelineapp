@@ -24,6 +24,7 @@ nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-w
 nav button{flex:1;background:none;color:var(--mut);margin:0;border-radius:0;padding:12px 2px;font-size:12px}nav button.on{color:var(--red);box-shadow:inset 0 3px 0 var(--red)}
 .row{display:flex;gap:8px}.row>*{flex:1}.av{width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--line)}
 .seg button{background:var(--bg);color:var(--ink);border:1px solid var(--line)}.seg button.on{background:var(--red);color:#fff}
+details summary{cursor:pointer;padding:4px 0;list-style-position:inside}
 </style></head><body>
 <header><svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3C14 12 8 18 8 25a12 12 0 0 0 24 0C32 18 26 12 20 3z" fill="#fff"/><path d="M20 17v14M13 24h14" stroke="#B3122A" stroke-width="3.5" stroke-linecap="round"/></svg>
 <div><b>Lifeline</b><br><span id="tag"></span></div></header>
@@ -108,7 +109,7 @@ function commits(){const a=S.seed.filter(r=>r.me&&r.open!==false).map(r=>({l:r.p
 function dropAll(){S.seed.forEach(r=>{if(r.me)r.me=null});S.drives.forEach(d=>{if(d.me){d.me=false;d.going--;log("Removed from drive "+d.title+": you cannot donate right now")}})}
 let pend=null;
 const DMIN=18,DMAX=65,MINACC=16;
-let lf={q:"",k:"",m:""};
+let lf={q:"",k:"",m:""},lt="don";
 function kindOf(m){return /^You marked|cancelled your response|^Removed from drive/.test(m)?"resp":/Donation verified|Recorded a donation|received blood|Recorded blood/.test(m)?"don":/^Reported/.test(m)?"other":"req"}
 function logMatch(h){const d=new Date(h.t);if(lf.m&&(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"))!=lf.m)return false;if(lf.k&&kindOf(h.m)!=lf.k)return false;const q=lf.q.trim().toLowerCase();if(!q)return true;const s=(h.m+" "+d.toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"})+" "+d.toLocaleDateString(undefined,{month:"short"})).toLowerCase();return q.split(/\s+/).every(w=>s.includes(w))}
 function hl(){const e=$("hl");if(e)e.innerHTML=histHtml()}
@@ -180,12 +181,12 @@ function send(){const v=i=>($(i)||{}).value||"";const n=v("r_n"),pl=v("r_p");
 function drive(){const v=i=>($(i)||{}).value||"",pl=v("r_p");if(!v("d_t")||(!pl&&!pin)||BAD.test(v("d_t")+pl+v("r_n")))return alert("Enter a clean title and a venue or map pin.");
  S.drives.unshift({id:"d"+Date.now(),org:S.u.name,title:v("d_t"),date:v("d_d"),place:pl||"Pinned location",lat:pin&&pin.lat,lng:pin&&pin.lng,rad:v("r_r"),note:v("r_n"),going:0,me:false});pin=null;log("Announced blood drive: "+v("d_t"));S.tab="home";show();alert(`Blood drive announced. Donors within about ${v("r_r")||15} km of the venue are being notified${v("r_e")?", with an email for those who may be offline":""}.`)}
 function logv(){const ver=S.don.filter(d=>d.ver).length;
- $("app").innerHTML=`${S.u.o=="org"?"":`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${ageSt()=="old"?"Donating is not available at your age.":nextOk()?"Next eligible: "+fmt(nextOk())+(recWait()?" (waiting period after receiving blood)":""):"No donations recorded yet."}</div></div>
- <div class="card"><h3>Record a donation</h3><label>Date</label><input id="m_d" type="date"><label>Facility</label><input id="m_f"><label>City / location</label><input id="m_c"><button onclick="addD()">Save donation</button></div>
- <div class="card"><h3>Record blood I received</h3><label>Date</label><input id="b_d" type="date"><label>Facility</label><input id="b_f"><button onclick="addB()">Save</button><p class="mut">After receiving blood you must wait ${RW} months before donating. Alerts and sign-ups are paused until then.</p></div>
+ const ind=S.u.o!="org",tab=ind?lt:"act";$("app").innerHTML=`${ind?`<div class="seg row card" style="padding:8px"><button class="${tab=="don"?"on":""}" onclick="lt='don';logv()">My donations</button><button class="${tab=="act"?"on":""}" onclick="lt='act';logv()">Activity</button></div>`:""}${tab!="don"?"":`<h2>My donations</h2><div class="card"><b>${S.don.length}</b> recorded · <b>${ver}</b> verified through Lifeline<div class="mut">${ageSt()=="old"?"Donating is not available at your age.":nextOk()?"Next eligible: "+fmt(nextOk())+(recWait()?" (waiting period after receiving blood)":""):"No donations recorded yet."}</div></div>
+ <details class="card"><summary><b>Record a donation</b></summary><label>Date</label><input id="m_d" type="date"><label>Facility</label><input id="m_f"><label>City / location</label><input id="m_c"><button onclick="addD()">Save donation</button></details>
+ <details class="card"><summary><b>Record blood I received</b></summary><label>Date</label><input id="b_d" type="date"><label>Facility</label><input id="b_f"><button onclick="addB()">Save</button><p class="mut">After receiving blood you must wait ${RW} months before donating. Alerts and sign-ups are paused until then.</p></details>
  ${S.rec.map(d=>`<div class="card"><b>${fmt(d.d)}</b> 🩸 Received blood<div class="mut">${esc(d.place)} · ${esc(d.via)}</div></div>`).join("")}
  ${S.don.map(d=>`<div class="card"><b>${fmt(d.d)}</b> ${d.ver?"✔ verified":""}<div class="mut">${esc(d.place)} ${esc(d.city)} · ${esc(d.via)}${d.for?" · for "+esc(d.for):""}</div></div>`).join("")}
- `}<h2>Activity</h2>${logTools()}<div id="hl">${histHtml()}</div>`}
+ `}${tab=="act"?`<h2>Activity</h2>${logTools()}<div id="hl">${histHtml()}</div>`:""}`}
 function histHtml(){let y="",o="";const L2=S.hist.filter(logMatch);if(S.hist.length)o+=`<div class="mut">${L2.length} of ${S.hist.length} entries</div>`;L2.forEach(h=>{const d=new Date(h.t),yy=d.getFullYear();if(yy!=y){y=yy;o+=`<h3 style="margin-top:14px">${yy}</h3>`}
  o+=`<div class="mut">${d.toLocaleDateString(undefined,{day:"numeric",month:"short"})}, ${d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:false})} · ${esc(h.m)}</div>`});
  return S.hist.length?(L2.length?o:o+'<div class="mut">No entries match your search.</div>'):'<div class="mut">Requests and responses appear here.</div>'}
